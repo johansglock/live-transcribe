@@ -1,0 +1,35 @@
+[package]
+name = "live-transcribe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# System tray
+tray-item = "0.9"
+
+# YAML configuration
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
+# Global hotkeys for macOS
+global-hotkey = "0.5"
+
+# Audio capture
+cpal = "0.15"
+
+# Whisper integration (we'll use whisper.cpp bindings)
+# For now, we'll add this placeholder - we may need to use FFI or a wrapper
+# whisper-rs = "0.10"
+
+# Cross-platform paths
+dirs = "5.0"
+
+# Error handling
+anyhow = "1.0"
+
+# Event loop
+winit = "0.29"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa = "0.25"
+objc = "0.2"
