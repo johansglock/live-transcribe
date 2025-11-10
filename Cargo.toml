@@ -2,10 +2,10 @@
 name = "live-transcribe"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Johan Sglock"]
 description = "Live audio transcription system tray app with Whisper AI - 100% offline with GPU acceleration"
 license = "MIT"
-repository = "https://github.com/yourusername/live-transcribe"
+repository = "https://github.com/johansglock/live-transcribe"
 keywords = ["whisper", "transcription", "speech-to-text", "macos", "tray"]
 categories = ["multimedia::audio", "command-line-utilities"]
 

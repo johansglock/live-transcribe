@@ -9,7 +9,7 @@ A macOS system tray application for live audio transcription using OpenAI's Whis
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Clone and install
-git clone https://github.com/yourusername/live-transcribe.git
+git clone https://github.com/johansglock/live-transcribe.git
 cd live-transcribe
 cargo install --path .
 
