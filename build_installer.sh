@@ -267,6 +267,9 @@ productbuild --distribution distribution.xml \
              --package-path . \
              LiveTranscribe-$VERSION-installer.pkg
 
+# Remove intermediate component package (not needed by users)
+rm -f live-transcribe-$VERSION.pkg
+
 echo
 echo "==> Creating ZIP of binary..."
 cd target/release
