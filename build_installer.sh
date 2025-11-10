@@ -7,6 +7,19 @@ echo
 # Get version (default to 0.0.0-dev for local builds)
 VERSION="${1:-0.0.0-dev}"
 echo "Version: $VERSION"
+
+# Code signing configuration
+# Set SIGNING_IDENTITY environment variable to use Developer ID signing
+# If not set, will use ad-hoc signing (development only)
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
+
+if [ -n "$SIGNING_IDENTITY" ]; then
+    echo "Code Signing: Developer ID ($SIGNING_IDENTITY)"
+else
+    echo "Code Signing: Ad-hoc (development only)"
+    echo "  ⚠️  Permissions will reset after each build"
+    echo "  Set SIGNING_IDENTITY env var for Developer ID signing"
+fi
 echo
 
 # Build release binaries
@@ -80,18 +93,40 @@ EOF
 echo "✅ App bundle created: $BUNDLE_DIR"
 echo
 
-# Sign the app bundle with ad-hoc signature
-# This ensures consistent identifier across updates for permissions
+# Sign the app bundle
 echo "==> Signing app bundle..."
-codesign --force --deep --sign - \
-         --identifier "$BUNDLE_ID" \
-         "$BUNDLE_DIR"
 
-if [ $? -eq 0 ]; then
-    echo "✅ App bundle signed successfully"
-    codesign -dv "$BUNDLE_DIR" 2>&1 | grep "Identifier\|Signature"
+if [ -n "$SIGNING_IDENTITY" ]; then
+    # Developer ID signing
+    echo "Signing with Developer ID certificate..."
+    codesign --force --deep \
+             --sign "$SIGNING_IDENTITY" \
+             --identifier "$BUNDLE_ID" \
+             --timestamp \
+             --options runtime \
+             "$BUNDLE_DIR"
+
+    if [ $? -eq 0 ]; then
+        echo "✅ App bundle signed with Developer ID"
+        codesign -dv "$BUNDLE_DIR" 2>&1 | grep -E "Identifier|Authority|Signature|TeamIdentifier"
+    else
+        echo "❌ Error: Developer ID signing failed"
+        exit 1
+    fi
 else
-    echo "⚠️  Warning: Code signing failed, but continuing..."
+    # Ad-hoc signing (development only)
+    echo "Signing with ad-hoc signature (development only)..."
+    codesign --force --deep \
+             --sign - \
+             --identifier "$BUNDLE_ID" \
+             "$BUNDLE_DIR"
+
+    if [ $? -eq 0 ]; then
+        echo "✅ App bundle signed with ad-hoc signature"
+        codesign -dv "$BUNDLE_DIR" 2>&1 | grep "Identifier\|Signature"
+    else
+        echo "⚠️  Warning: Ad-hoc signing failed, but continuing..."
+    fi
 fi
 echo
 
@@ -496,6 +531,44 @@ productbuild --distribution distribution.xml \
              --resources . \
              --package-path . \
              LiveTranscribe-$VERSION-installer.pkg
+
+# Sign the installer package if using Developer ID
+if [ -n "$SIGNING_IDENTITY" ]; then
+    echo
+    echo "==> Signing installer package..."
+    productsign --sign "$SIGNING_IDENTITY" \
+                LiveTranscribe-$VERSION-installer.pkg \
+                LiveTranscribe-$VERSION-installer-signed.pkg
+
+    if [ $? -eq 0 ]; then
+        mv LiveTranscribe-$VERSION-installer-signed.pkg LiveTranscribe-$VERSION-installer.pkg
+        echo "✅ Installer package signed"
+    else
+        echo "❌ Error: Installer package signing failed"
+        exit 1
+    fi
+fi
+
+# Notarize if using Developer ID and credentials are available
+if [ -n "$SIGNING_IDENTITY" ] && [ -n "$NOTARIZATION_PROFILE" ]; then
+    echo
+    echo "==> Notarizing installer package..."
+    echo "Submitting to Apple notary service..."
+
+    xcrun notarytool submit LiveTranscribe-$VERSION-installer.pkg \
+                           --keychain-profile "$NOTARIZATION_PROFILE" \
+                           --wait
+
+    if [ $? -eq 0 ]; then
+        echo "✅ Notarization successful"
+        echo "Stapling notarization ticket..."
+        xcrun stapler staple LiveTranscribe-$VERSION-installer.pkg
+        echo "✅ Notarization ticket stapled"
+    else
+        echo "⚠️  Warning: Notarization failed or timed out"
+        echo "The installer will work but may show security warnings"
+    fi
+fi
 
 echo
 echo "==> Cleaning up intermediate files..."
