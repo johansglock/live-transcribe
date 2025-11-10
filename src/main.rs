@@ -37,9 +37,8 @@ struct Cli {
 enum Commands {
     /// Download a Whisper model
     DownloadModel {
-        /// Model to download (e.g., base.en, tiny.en, small.en)
-        #[arg(default_value = "base.en")]
-        model: String,
+        /// Model to download (e.g., base.en, tiny.en, small.en). If not specified, uses the configured model from settings.yaml
+        model: Option<String>,
     },
     /// Record test audio for debugging streaming transcription
     TestRecord {
@@ -486,9 +485,19 @@ fn test_record_command(name: &str, _duration: u64) -> Result<()> {
     Ok(())
 }
 
-fn download_model_command(model_name: &str) -> Result<()> {
+fn download_model_command(model_name: &Option<String>) -> Result<()> {
     println!("Live Transcribe - Model Downloader");
     println!();
+
+    // If no model specified, use the configured model
+    let model_to_download = if let Some(name) = model_name {
+        name.clone()
+    } else {
+        let config = Config::load_or_create()?;
+        println!("No model specified, using configured model: {}", config.transcription.model);
+        println!();
+        config.transcription.model
+    };
 
     let config_dir = Config::config_dir()?;
     let models_dir = config_dir.join("models");
@@ -497,7 +506,7 @@ fn download_model_command(model_name: &str) -> Result<()> {
 
     println!("Available models:");
     for (name, size, desc) in ModelDownloader::list_available_models() {
-        let marker = if name == model_name { "→" } else { " " };
+        let marker = if name == model_to_download { "→" } else { " " };
         println!("  {} {} - {} ({})", marker, name, desc, size);
     }
     println!();
@@ -505,15 +514,21 @@ fn download_model_command(model_name: &str) -> Result<()> {
     println!("Models directory: {}", models_dir.display());
     println!();
 
-    downloader.ensure_model_exists(model_name)?;
+    downloader.ensure_model_exists(&model_to_download)?;
 
     println!();
     println!("✓ Model setup complete!");
+
+    // Only show the config update message if they explicitly specified a different model
+    if model_name.is_some() {
+        println!();
+        println!("To use this model, update ~/.live-transcribe/settings.yaml:");
+        println!("  transcription:");
+        println!("    model: \"{}\"", model_to_download);
+    }
+
     println!();
-    println!("To use this model, update ~/.live-transcribe/settings.yaml:");
-    println!("  model: \"{}\"", model_name);
-    println!();
-    println!("Or run the app and it will use the configured model.");
+    println!("Run the app to start using the model.");
 
     Ok(())
 }
