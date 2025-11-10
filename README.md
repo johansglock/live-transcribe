@@ -35,43 +35,26 @@ Then press **Cmd+Shift+T** to start recording, **Cmd+Shift+S** to stop and trans
 
 ## Installation
 
-### Prerequisites
+**See [INSTALL.md](INSTALL.md) for detailed installation instructions.**
 
-- macOS (Apple Silicon M1/M2/M3/M4 recommended for Neural Engine acceleration)
-- Rust toolchain (install from [rustup.rs](https://rustup.rs))
+### Quick Install Options
 
-### Option 1: Install from Source (Recommended)
+**Option 1: macOS Installer (Recommended)**
+
+Download the latest `.pkg` installer from [Releases](https://github.com/johansglock/live-transcribe/releases) and double-click to install. The app will automatically start and run in the background.
+
+**Option 2: Build from Source**
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/live-transcribe.git
+# Prerequisites: macOS with Rust installed (https://rustup.rs)
+
+git clone https://github.com/johansglock/live-transcribe.git
 cd live-transcribe
-
-# Install the binary to ~/.cargo/bin/
-cargo install --path .
-
-# Download the model
-live-transcribe download-model
-
-# Run the app
-live-transcribe
-```
-
-### Option 2: Install from crates.io (when published)
-
-```bash
-cargo install live-transcribe
-live-transcribe download-model
-live-transcribe
-```
-
-### Option 3: Build Locally
-
-```bash
 cargo build --release
+sudo cp target/release/live-transcribe /usr/local/bin/
+live-transcribe download-model
+live-transcribe
 ```
-
-The binary will be at `target/release/live-transcribe`.
 
 ### Download Whisper Model
 

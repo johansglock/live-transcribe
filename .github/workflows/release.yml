@@ -1,0 +1,355 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache target directory
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build release binary
+      run: cargo build --release --bin live-transcribe
+
+    - name: Get version from tag
+      id: get_version
+      run: |
+        if [ "${{ github.ref_type }}" = "tag" ]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create package structure
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+        # Create package root
+        mkdir -p package/root/usr/local/bin
+        mkdir -p package/scripts
+
+        # Copy binary
+        cp target/release/live-transcribe package/root/usr/local/bin/
+        chmod +x package/root/usr/local/bin/live-transcribe
+
+        # Create LaunchAgent template
+        mkdir -p package/root/Library/LaunchAgents
+        cat > package/root/Library/LaunchAgents/com.johansglock.live-transcribe.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>com.johansglock.live-transcribe</string>
+
+            <key>ProgramArguments</key>
+            <array>
+                <string>/usr/local/bin/live-transcribe</string>
+            </array>
+
+            <key>RunAtLoad</key>
+            <true/>
+
+            <key>KeepAlive</key>
+            <true/>
+
+            <key>StandardOutPath</key>
+            <string>/tmp/live-transcribe-stdout.log</string>
+
+            <key>StandardErrorPath</key>
+            <string>/tmp/live-transcribe-stderr.log</string>
+
+            <key>EnvironmentVariables</key>
+            <dict>
+                <key>PATH</key>
+                <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+            </dict>
+
+            <key>ProcessType</key>
+            <string>Interactive</string>
+        </dict>
+        </plist>
+        EOF
+
+        # Create postinstall script
+        cat > package/scripts/postinstall << 'EOF'
+        #!/bin/bash
+
+        # Get the user who invoked the installer (not root)
+        CURRENT_USER="${USER}"
+        if [ "$CURRENT_USER" = "root" ]; then
+            CURRENT_USER=$(stat -f "%Su" /dev/console)
+        fi
+        USER_HOME=$(eval echo ~$CURRENT_USER)
+
+        # Create config directory
+        mkdir -p "$USER_HOME/.live-transcribe/logs"
+        chown -R "$CURRENT_USER" "$USER_HOME/.live-transcribe"
+
+        # Copy LaunchAgent to user's LaunchAgents directory
+        mkdir -p "$USER_HOME/Library/LaunchAgents"
+        cp /Library/LaunchAgents/com.johansglock.live-transcribe.plist "$USER_HOME/Library/LaunchAgents/"
+        chown "$CURRENT_USER" "$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
+
+        # Update the log paths to use the user's home directory
+        sed -i '' "s|/tmp/live-transcribe-stdout.log|$USER_HOME/.live-transcribe/logs/stdout.log|g" \
+            "$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
+        sed -i '' "s|/tmp/live-transcribe-stderr.log|$USER_HOME/.live-transcribe/logs/stderr.log|g" \
+            "$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
+
+        # Load the LaunchAgent as the user
+        su - "$CURRENT_USER" -c "launchctl load \"$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist\""
+
+        echo "Live Transcribe has been installed and started!"
+        echo "Configuration directory: $USER_HOME/.live-transcribe"
+        echo "Logs: $USER_HOME/.live-transcribe/logs"
+        echo ""
+        echo "To configure, edit: $USER_HOME/.live-transcribe/settings.yaml"
+        echo "To download models, run: live-transcribe download-model"
+        echo ""
+        echo "Grant Accessibility permissions in System Settings > Privacy & Security > Accessibility"
+
+        exit 0
+        EOF
+
+        chmod +x package/scripts/postinstall
+
+        # Create preinstall script to stop existing service
+        cat > package/scripts/preinstall << 'EOF'
+        #!/bin/bash
+
+        # Get the user who invoked the installer
+        CURRENT_USER="${USER}"
+        if [ "$CURRENT_USER" = "root" ]; then
+            CURRENT_USER=$(stat -f "%Su" /dev/console)
+        fi
+        USER_HOME=$(eval echo ~$CURRENT_USER)
+
+        # Unload existing LaunchAgent if it exists
+        if [ -f "$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist" ]; then
+            su - "$CURRENT_USER" -c "launchctl unload \"$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist\"" 2>/dev/null || true
+        fi
+
+        exit 0
+        EOF
+
+        chmod +x package/scripts/preinstall
+
+    - name: Build package
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+        pkgbuild --root package/root \
+                 --scripts package/scripts \
+                 --identifier com.johansglock.live-transcribe \
+                 --version "$VERSION" \
+                 --install-location / \
+                 live-transcribe-$VERSION.pkg
+
+    - name: Create distribution XML (for productbuild)
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+        cat > distribution.xml << EOF
+        <?xml version="1.0" encoding="utf-8"?>
+        <installer-gui-script minSpecVersion="1">
+            <title>Live Transcribe</title>
+            <organization>com.johansglock</organization>
+            <domains enable_localSystem="true"/>
+            <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+
+            <welcome file="welcome.html"/>
+            <readme file="readme.html"/>
+            <license file="license.html"/>
+
+            <pkg-ref id="com.johansglock.live-transcribe"/>
+
+            <options customize="never" require-scripts="true"/>
+
+            <choices-outline>
+                <line choice="default">
+                    <line choice="com.johansglock.live-transcribe"/>
+                </line>
+            </choices-outline>
+
+            <choice id="default"/>
+
+            <choice id="com.johansglock.live-transcribe" visible="false">
+                <pkg-ref id="com.johansglock.live-transcribe"/>
+            </choice>
+
+            <pkg-ref id="com.johansglock.live-transcribe" version="$VERSION">live-transcribe-$VERSION.pkg</pkg-ref>
+        </installer-gui-script>
+        EOF
+
+        # Create welcome text
+        cat > welcome.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <body>
+        <h1>Welcome to Live Transcribe</h1>
+        <p>This installer will install Live Transcribe, a real-time speech-to-text application that runs entirely on your Mac.</p>
+        <p><strong>Features:</strong></p>
+        <ul>
+            <li>Real-time transcription with low latency</li>
+            <li>Fully offline - no internet required</li>
+            <li>System tray integration</li>
+            <li>Global hotkeys for start/stop</li>
+            <li>Sandboxed for security</li>
+        </ul>
+        </body>
+        </html>
+        EOF
+
+        # Create readme
+        cat > readme.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <body>
+        <h1>Installation</h1>
+        <p>Live Transcribe will be installed to <code>/usr/local/bin/live-transcribe</code></p>
+
+        <h2>First Run</h2>
+        <ol>
+            <li>After installation, the app will start automatically</li>
+            <li>Download a model: Open Terminal and run <code>live-transcribe download-model</code></li>
+            <li>Grant Accessibility permissions in System Settings > Privacy & Security > Accessibility</li>
+            <li>Use the hotkeys:
+                <ul>
+                    <li><strong>Cmd+Shift+T</strong> - Start transcription</li>
+                    <li><strong>Cmd+Shift+S</strong> - Stop transcription</li>
+                </ul>
+            </li>
+        </ol>
+
+        <h2>Configuration</h2>
+        <p>Edit <code>~/.live-transcribe/settings.yaml</code> to customize hotkeys and transcription settings.</p>
+
+        <h2>Logs</h2>
+        <p>View logs at <code>~/.live-transcribe/logs/</code></p>
+        </body>
+        </html>
+        EOF
+
+        # Create license
+        cat > license.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <body>
+        <h1>License</h1>
+        <p>MIT License</p>
+        <p>Copyright (c) 2024</p>
+        <p>Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:</p>
+
+        <p>The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.</p>
+
+        <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.</p>
+        </body>
+        </html>
+        EOF
+
+    - name: Build product package
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+        productbuild --distribution distribution.xml \
+                     --resources . \
+                     --package-path . \
+                     LiveTranscribe-$VERSION-installer.pkg
+
+    - name: Create ZIP of binary
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        cd target/release
+        zip ../../live-transcribe-$VERSION-macos.zip live-transcribe
+
+    - name: Generate checksums
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        shasum -a 256 LiveTranscribe-$VERSION-installer.pkg > checksums.txt
+        shasum -a 256 live-transcribe-$VERSION-macos.zip >> checksums.txt
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          LiveTranscribe-${{ steps.get_version.outputs.VERSION }}-installer.pkg
+          live-transcribe-${{ steps.get_version.outputs.VERSION }}-macos.zip
+          checksums.txt
+        body: |
+          ## Live Transcribe ${{ steps.get_version.outputs.VERSION }}
+
+          ### Installation Options
+
+          #### Option 1: macOS Installer (Recommended)
+          Download `LiveTranscribe-${{ steps.get_version.outputs.VERSION }}-installer.pkg` and double-click to install.
+
+          This will:
+          - Install the binary to `/usr/local/bin/live-transcribe`
+          - Set up automatic startup via LaunchAgent
+          - Create configuration directory at `~/.live-transcribe`
+
+          After installation:
+          1. Download a model: `live-transcribe download-model`
+          2. Grant Accessibility permissions in System Settings
+          3. The app will run automatically in the background
+
+          #### Option 2: Manual Installation
+          Download `live-transcribe-${{ steps.get_version.outputs.VERSION }}-macos.zip`, extract, and run manually.
+
+          ### Configuration
+          Edit `~/.live-transcribe/settings.yaml` to customize hotkeys and transcription settings.
+
+          ### Default Hotkeys
+          - **Cmd+Shift+T** - Start transcription
+          - **Cmd+Shift+S** - Stop transcription
+
+          ### Logs
+          - `~/.live-transcribe/logs/stdout.log`
+          - `~/.live-transcribe/logs/stderr.log`
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

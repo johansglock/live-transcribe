@@ -14,3 +14,13 @@ Cargo.lock
 
 # Settings (user-specific)
 settings.yaml
+
+# Build artifacts
+package/
+distribution.xml
+welcome.html
+readme.html
+license.html
+*.pkg
+*.zip
+checksums.txt
