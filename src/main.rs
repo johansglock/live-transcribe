@@ -561,7 +561,7 @@ fn run_app() -> Result<()> {
     let event_loop = EventLoop::new();
 
     // Create tray app
-    let tray_app = TrayApp::new()?;
+    let mut tray_app = TrayApp::new()?;
     println!("System tray initialized");
 
     // Create hotkey manager
@@ -574,12 +574,28 @@ fn run_app() -> Result<()> {
     // Create transcription state machine
     let mut transcription_state = TranscriptionState::new(silence_threshold);
 
+    // Blink timer for recording indicator (blink every 500ms)
+    let mut last_blink = std::time::Instant::now();
+    let blink_interval = std::time::Duration::from_millis(500);
+
     // Main event loop
     event_loop.run(move |_event, _, control_flow| {
         // Use WaitUntil with a short timeout for responsive polling
         *control_flow = ControlFlow::WaitUntil(
             std::time::Instant::now() + std::time::Duration::from_millis(16) // ~60fps
         );
+
+        // Blink recording indicator if recording
+        if streaming_mode {
+            let capture_guard = audio_capture.lock().unwrap();
+            let is_recording = capture_guard.is_recording();
+            drop(capture_guard);
+
+            if is_recording && last_blink.elapsed() >= blink_interval {
+                tray_app.blink_recording_indicator();
+                last_blink = std::time::Instant::now();
+            }
+        }
 
         // Poll transcription results (non-blocking)
         while let Ok(result) = transcription_results.try_recv() {
@@ -618,12 +634,12 @@ fn run_app() -> Result<()> {
             match event {
                 HotkeyEvent::StartTranscription => {
                     println!("Hotkey: Starting transcription...");
-                    start_transcription(&audio_capture, &tray_app);
+                    start_transcription(&audio_capture, &mut tray_app);
                     transcription_state.reset();
                 }
                 HotkeyEvent::StopTranscription => {
                     println!("Hotkey: Stopping transcription...");
-                    stop_transcription(&audio_capture, &tray_app, streaming_mode);
+                    stop_transcription(&audio_capture, &mut tray_app, streaming_mode);
                 }
             }
         }
@@ -633,12 +649,12 @@ fn run_app() -> Result<()> {
             match event {
                 TrayMenuEvent::StartTranscription => {
                     println!("Menu: Starting transcription...");
-                    start_transcription(&audio_capture, &tray_app);
+                    start_transcription(&audio_capture, &mut tray_app);
                     transcription_state.reset();
                 }
                 TrayMenuEvent::StopTranscription => {
                     println!("Menu: Stopping transcription...");
-                    stop_transcription(&audio_capture, &tray_app, streaming_mode);
+                    stop_transcription(&audio_capture, &mut tray_app, streaming_mode);
                 }
                 TrayMenuEvent::Settings => {
                     println!("Opening settings...");
@@ -700,7 +716,7 @@ fn run_app() -> Result<()> {
     });
 }
 
-fn start_transcription(audio_capture: &Arc<Mutex<AudioCapture>>, tray_app: &TrayApp) {
+fn start_transcription(audio_capture: &Arc<Mutex<AudioCapture>>, tray_app: &mut TrayApp) {
     let mut capture = audio_capture.lock().unwrap();
     if !capture.is_recording() {
         match capture.start_recording() {
@@ -717,7 +733,7 @@ fn start_transcription(audio_capture: &Arc<Mutex<AudioCapture>>, tray_app: &Tray
 
 fn stop_transcription(
     audio_capture: &Arc<Mutex<AudioCapture>>,
-    tray_app: &TrayApp,
+    tray_app: &mut TrayApp,
     streaming_mode: bool,
 ) {
     let mut capture = audio_capture.lock().unwrap();
