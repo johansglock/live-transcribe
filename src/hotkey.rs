@@ -9,12 +9,14 @@ use crate::config::HotkeyConfig;
 pub enum HotkeyEvent {
     StartTranscription,
     StopTranscription,
+    ToggleTranscription,
 }
 
 pub struct HotkeyManager {
     manager: GlobalHotKeyManager,
-    start_hotkey: HotKey,
-    stop_hotkey: HotKey,
+    start_hotkey: Option<HotKey>,
+    stop_hotkey: Option<HotKey>,
+    toggle_hotkey: Option<HotKey>,
 }
 
 impl HotkeyManager {
@@ -22,26 +24,44 @@ impl HotkeyManager {
         let manager = GlobalHotKeyManager::new()
             .context("Failed to create global hotkey manager")?;
 
-        // Parse and register start hotkey
-        let start_hotkey = Self::parse_hotkey(&config.start_transcription)
-            .context("Failed to parse start transcription hotkey")?;
-        manager.register(start_hotkey)
-            .context("Failed to register start transcription hotkey")?;
+        // Check if using toggle mode (same hotkey for start and stop)
+        let use_toggle = config.start_transcription == config.stop_transcription;
 
-        // Parse and register stop hotkey
-        let stop_hotkey = Self::parse_hotkey(&config.stop_transcription)
-            .context("Failed to parse stop transcription hotkey")?;
-        manager.register(stop_hotkey)
-            .context("Failed to register stop transcription hotkey")?;
+        let (start_hotkey, stop_hotkey, toggle_hotkey) = if use_toggle {
+            // Toggle mode: single hotkey
+            let hotkey = Self::parse_hotkey(&config.start_transcription)
+                .context("Failed to parse toggle hotkey")?;
+            manager.register(hotkey)
+                .context("Failed to register toggle hotkey")?;
 
-        println!("Registered global hotkeys:");
-        println!("  Start: {}", config.start_transcription);
-        println!("  Stop: {}", config.stop_transcription);
+            println!("Registered global hotkey:");
+            println!("  Toggle: {}", config.start_transcription);
+
+            (None, None, Some(hotkey))
+        } else {
+            // Separate mode: different hotkeys for start and stop
+            let start = Self::parse_hotkey(&config.start_transcription)
+                .context("Failed to parse start transcription hotkey")?;
+            manager.register(start)
+                .context("Failed to register start transcription hotkey")?;
+
+            let stop = Self::parse_hotkey(&config.stop_transcription)
+                .context("Failed to parse stop transcription hotkey")?;
+            manager.register(stop)
+                .context("Failed to register stop transcription hotkey")?;
+
+            println!("Registered global hotkeys:");
+            println!("  Start: {}", config.start_transcription);
+            println!("  Stop: {}", config.stop_transcription);
+
+            (Some(start), Some(stop), None)
+        };
 
         Ok(HotkeyManager {
             manager,
             start_hotkey,
             stop_hotkey,
+            toggle_hotkey,
         })
     }
 
@@ -133,10 +153,20 @@ impl HotkeyManager {
 
     pub fn poll_event(&self) -> Option<HotkeyEvent> {
         if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
-            if event.id == self.start_hotkey.id() {
-                return Some(HotkeyEvent::StartTranscription);
-            } else if event.id == self.stop_hotkey.id() {
-                return Some(HotkeyEvent::StopTranscription);
+            if let Some(toggle) = &self.toggle_hotkey {
+                if event.id == toggle.id() {
+                    return Some(HotkeyEvent::ToggleTranscription);
+                }
+            }
+            if let Some(start) = &self.start_hotkey {
+                if event.id == start.id() {
+                    return Some(HotkeyEvent::StartTranscription);
+                }
+            }
+            if let Some(stop) = &self.stop_hotkey {
+                if event.id == stop.id() {
+                    return Some(HotkeyEvent::StopTranscription);
+                }
             }
         }
         None
@@ -145,7 +175,14 @@ impl HotkeyManager {
 
 impl Drop for HotkeyManager {
     fn drop(&mut self) {
-        let _ = self.manager.unregister(self.start_hotkey);
-        let _ = self.manager.unregister(self.stop_hotkey);
+        if let Some(hotkey) = self.start_hotkey {
+            let _ = self.manager.unregister(hotkey);
+        }
+        if let Some(hotkey) = self.stop_hotkey {
+            let _ = self.manager.unregister(hotkey);
+        }
+        if let Some(hotkey) = self.toggle_hotkey {
+            let _ = self.manager.unregister(hotkey);
+        }
     }
 }

@@ -662,6 +662,17 @@ fn run_app() -> Result<()> {
                     println!("Hotkey: Stopping transcription...");
                     stop_transcription(&audio_capture, &mut tray_app, streaming_mode);
                 }
+                HotkeyEvent::ToggleTranscription => {
+                    let is_recording = audio_capture.lock().unwrap().is_recording();
+                    if is_recording {
+                        println!("Hotkey: Toggle - stopping transcription...");
+                        stop_transcription(&audio_capture, &mut tray_app, streaming_mode);
+                    } else {
+                        println!("Hotkey: Toggle - starting transcription...");
+                        start_transcription(&audio_capture, &mut tray_app);
+                        transcription_state.reset();
+                    }
+                }
             }
         }
 

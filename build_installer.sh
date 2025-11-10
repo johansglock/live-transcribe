@@ -467,12 +467,11 @@ h1 {
 <div class="step">
 <h3>Step 2: Start Transcribing!</h3>
 <p>The <strong>small.en</strong> model has been automatically downloaded and configured.</p>
-<p>Use these keyboard shortcuts:</p>
+<p>Use this keyboard shortcut to toggle transcription:</p>
 <ul>
-    <li><span class="hotkey">Cmd+Shift+T</span> - Start transcription</li>
-    <li><span class="hotkey">Cmd+Shift+S</span> - Stop transcription</li>
+    <li><span class="hotkey">Option+Space</span> - Toggle transcription (start/stop)</li>
 </ul>
-<p>You can customize these shortcuts in <code>~/.live-transcribe/settings.yaml</code></p>
+<p>You can customize this shortcut in <code>~/.live-transcribe/settings.yaml</code></p>
 </div>
 
 <div class="step">

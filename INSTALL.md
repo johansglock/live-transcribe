@@ -51,21 +51,20 @@ launchctl load ~/Library/LaunchAgents/nl.300.live-transcribe.plist
 
 ## Configuration
 
-Edit `~/.live-transcribe/settings.yaml` to customize:
+The app uses sensible defaults. To customize, create `~/.live-transcribe/settings.yaml`:
 
 ```yaml
+# Optional: Customize hotkeys (default: Option+Space for toggle)
 hotkeys:
   start_transcription: "Cmd+Shift+T"
-  stop_transcription: "Cmd+Shift+S"
+  stop_transcription: "Cmd+Shift+T"
 
+# Optional: Change model (default: small.en)
 transcription:
-  model: "small.en"
-  language: "en"
-  use_gpu: true
-  streaming: true
-  chunk_duration_ms: 300
-  silence_threshold: 0.003
+  model: "medium.en"
 ```
+
+All settings are optional. Only add settings you want to change from defaults.
 
 ## Available Models
 
@@ -83,10 +82,9 @@ Then update `~/.live-transcribe/settings.yaml` to use the new model.
 
 ## Usage
 
-The app runs in your system tray (menu bar). Use the hotkeys to control it:
+The app runs in your system tray (menu bar). Use the hotkey to control it:
 
-- **Cmd+Shift+T** - Start transcription
-- **Cmd+Shift+S** - Stop transcription
+- **Option+Space** - Toggle transcription (start/stop)
 
 When transcribing, a blinking red dot appears on the icon.
 

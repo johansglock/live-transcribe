@@ -20,11 +20,11 @@ pub struct HotkeyConfig {
 }
 
 fn default_start_hotkey() -> String {
-    "Cmd+Shift+T".to_string()
+    "Option+Space".to_string()
 }
 
 fn default_stop_hotkey() -> String {
-    "Cmd+Shift+S".to_string()
+    "Option+Space".to_string()
 }
 
 impl Default for HotkeyConfig {
@@ -122,11 +122,10 @@ impl Config {
 
             Ok(config)
         } else {
-            // Create default config
-            let config = Config::default();
-            config.save()?;
-            println!("Created default config at: {}", config_path.display());
-            Ok(config)
+            // Use default config without saving
+            // Users can create the file manually if they want to customize
+            println!("Using default configuration. Edit ~/.live-transcribe/settings.yaml to customize.");
+            Ok(Config::default())
         }
     }
 
@@ -169,18 +168,4 @@ impl Config {
         Ok(())
     }
 
-    pub fn save(&self) -> Result<()> {
-        let config_dir = Self::config_dir()?;
-        fs::create_dir_all(&config_dir)
-            .context("Failed to create config directory")?;
-
-        let config_path = Self::config_path()?;
-        let yaml = serde_yaml::to_string(self)
-            .context("Failed to serialize config")?;
-
-        fs::write(&config_path, yaml)
-            .context("Failed to write config file")?;
-
-        Ok(())
-    }
 }

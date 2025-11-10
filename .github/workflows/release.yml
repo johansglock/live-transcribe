@@ -76,9 +76,8 @@ jobs:
 
           ### Usage
 
-          **Default Hotkeys:**
-          - **Cmd+Shift+T** - Start transcription
-          - **Cmd+Shift+S** - Stop transcription
+          **Default Hotkey:**
+          - **Option+Space** - Toggle transcription (start/stop)
 
           **Configuration:**
           Customize settings in `~/.live-transcribe/settings.yaml`
