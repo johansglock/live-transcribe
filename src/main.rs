@@ -4,6 +4,7 @@ mod constants;
 mod hotkey;
 mod keyboard;
 mod model_download;
+mod sandbox;
 mod text_diff;
 mod transcription;
 mod transcription_state;
@@ -62,15 +63,24 @@ fn main() -> Result<()> {
     // Handle subcommands
     match cli.command {
         Some(Commands::DownloadModel { model }) => {
+            // Don't enable sandbox for download - needs network access
             return download_model_command(&model);
         }
         Some(Commands::TestRecord { name, duration }) => {
+            // Don't enable sandbox for test commands - needs file system access
             return test_record_command(&name, duration);
         }
         Some(Commands::TestReplay { name }) => {
+            // Don't enable sandbox for test commands
             return test_replay_command(&name);
         }
         None => {
+            // Initialize sandbox for main app ONLY
+            if let Err(e) = sandbox::macos::init() {
+                eprintln!("⚠️  Failed to initialize sandbox: {}", e);
+                eprintln!("   Continuing without sandbox (less secure)");
+            }
+
             // Run the main application
             run_app()?;
         }

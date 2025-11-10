@@ -10,9 +10,6 @@ use crate::constants::worker::MAX_PENDING_REQUESTS;
 enum WorkerMessage {
     /// Transcribe audio with given request ID
     Transcribe { audio: Vec<f32>, request_id: u64 },
-    /// Cancel a specific request (currently unused - we use CancelAllBefore instead)
-    #[allow(dead_code)]
-    Cancel { request_id: u64 },
     /// Cancel all requests before a given ID
     CancelAllBefore { request_id: u64 },
 }
@@ -130,7 +127,6 @@ impl TranscriptionWorker {
         println!("🔧 Live preview worker thread started");
 
         let mut cancelled_ids: HashSet<u64> = HashSet::new();
-        const MAX_CANCELLED_IDS: usize = 100; // Prevent unbounded memory growth
 
         for message in task_rx {
             match message {
@@ -158,18 +154,6 @@ impl TranscriptionWorker {
                         break;
                     }
                 }
-                WorkerMessage::Cancel { request_id } => {
-                    cancelled_ids.insert(request_id);
-                    println!("❌ Cancelled live request {}", request_id);
-
-                    // Prevent unbounded growth: if set is too large, remove smallest IDs
-                    if cancelled_ids.len() > MAX_CANCELLED_IDS {
-                        if let Some(&min_id) = cancelled_ids.iter().min() {
-                            cancelled_ids.remove(&min_id);
-                            println!("⚠️  Cancelled IDs set too large, removed oldest ID: {}", min_id);
-                        }
-                    }
-                }
                 WorkerMessage::CancelAllBefore { request_id } => {
                     // Cancel all requests with IDs less than the given ID
                     // In practice, we just clear the set since requests are processed in order
@@ -191,7 +175,6 @@ impl TranscriptionWorker {
         println!("🔧 VAD worker thread started");
 
         let mut cancelled_ids: HashSet<u64> = HashSet::new();
-        const MAX_CANCELLED_IDS: usize = 100; // Prevent unbounded memory growth
 
         for message in task_rx {
             match message {
@@ -217,18 +200,6 @@ impl TranscriptionWorker {
                     if result_tx.send(result).is_err() {
                         println!("⚠️  VAD worker: main thread disconnected");
                         break;
-                    }
-                }
-                WorkerMessage::Cancel { request_id } => {
-                    cancelled_ids.insert(request_id);
-                    println!("❌ Cancelled VAD request {}", request_id);
-
-                    // Prevent unbounded growth: if set is too large, remove smallest IDs
-                    if cancelled_ids.len() > MAX_CANCELLED_IDS {
-                        if let Some(&min_id) = cancelled_ids.iter().min() {
-                            cancelled_ids.remove(&min_id);
-                            println!("⚠️  Cancelled IDs set too large, removed oldest ID: {}", min_id);
-                        }
                     }
                 }
                 WorkerMessage::CancelAllBefore { request_id } => {

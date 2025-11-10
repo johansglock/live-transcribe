@@ -181,9 +181,7 @@ pub fn simulate_hybrid_vad(
                     type_text: new_vad_committed.clone(),
                 });
 
-                vad_committed_text = new_vad_committed.clone();
-                // live_preview_text would be updated to new_vad_committed here,
-                // but we're at the end of the loop so we don't need to
+                // No need to update state variables - this is the final commit
             }
         }
     }

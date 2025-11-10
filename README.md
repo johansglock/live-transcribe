@@ -27,6 +27,7 @@ Then press **Cmd+Shift+T** to start recording, **Cmd+Shift+S** to stop and trans
 - 🎙️ **Live audio transcription** - Record and transcribe audio in real-time
 - ⚡ **GPU acceleration** - Uses Metal for fast inference on macOS
 - 🔐 **100% offline** - No internet connection required
+- 🛡️ **Sandboxed security** - Restricted file system and network access for safety
 - ⌨️ **Global hotkeys** - Control transcription from anywhere
 - 📋 **Auto-copy to clipboard** - Transcriptions automatically copied
 - ⚙️ **YAML configuration** - Easy to customize settings
@@ -254,6 +255,16 @@ Check your default input device in System Preferences → Sound → Input.
 ### Transcription is slow
 
 Try a smaller model like `tiny` or `base`, or ensure `use_gpu: true` is set in the config.
+
+## Security
+
+This application uses macOS sandboxing to restrict its capabilities during transcription:
+
+- ✅ **File access**: Only `~/.live-transcribe/` directory (config and models)
+- ❌ **Network**: Completely blocked (fully offline operation)
+- ❌ **Other files**: Cannot access Documents, Desktop, Downloads, etc.
+
+The sandbox is automatically enabled when running the main app (not for `download-model` or test commands). See [SANDBOX.md](SANDBOX.md) for detailed security documentation.
 
 ## License
 

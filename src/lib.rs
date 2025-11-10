@@ -2,6 +2,7 @@
 pub mod audio;
 pub mod config;
 pub mod constants;
+pub mod sandbox;
 pub mod text_diff;
 pub mod transcription;
 pub mod transcription_state;
