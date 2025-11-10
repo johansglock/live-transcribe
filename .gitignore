@@ -25,3 +25,7 @@ license.html
 *.zip
 checksums.txt
 live-transcribe-*.pkg
+LiveTranscribe.app/
+AppIcon.icns
+AppIcon.iconset/
+build_installer_old.sh

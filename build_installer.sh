@@ -9,20 +9,85 @@ VERSION="${1:-0.0.0-dev}"
 echo "Version: $VERSION"
 echo
 
-# Build release binary
-echo "==> Building release binary..."
+# Build release binaries
+echo "==> Building release binaries..."
 cargo build --release --bin live-transcribe
+cargo build --release --bin generate-icon
+echo
+
+# Generate app icon
+echo "==> Generating app icon..."
+./target/release/generate-icon
+echo
+
+# Create .app bundle
+echo "==> Creating .app bundle..."
+APP_NAME="LiveTranscribe"
+BUNDLE_ID="com.johansglock.live-transcribe"
+BUNDLE_DIR="$APP_NAME.app"
+
+rm -rf "$BUNDLE_DIR"
+mkdir -p "$BUNDLE_DIR/Contents/MacOS"
+mkdir -p "$BUNDLE_DIR/Contents/Resources"
+
+# Copy binary
+cp target/release/live-transcribe "$BUNDLE_DIR/Contents/MacOS/$APP_NAME"
+chmod +x "$BUNDLE_DIR/Contents/MacOS/$APP_NAME"
+
+# Copy icon
+cp AppIcon.icns "$BUNDLE_DIR/Contents/Resources/"
+
+# Create Info.plist
+cat > "$BUNDLE_DIR/Contents/Info.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>$APP_NAME</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>$BUNDLE_ID</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$APP_NAME</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$VERSION</string>
+    <key>CFBundleVersion</key>
+    <string>$VERSION</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Live Transcribe needs microphone access to transcribe your speech in real-time.</string>
+</dict>
+</plist>
+EOF
+
+echo "✅ App bundle created: $BUNDLE_DIR"
 echo
 
 # Create package structure
 echo "==> Creating package structure..."
 rm -rf package
+mkdir -p package/root/Applications
 mkdir -p package/root/usr/local/bin
 mkdir -p package/scripts
 
-# Copy binary
-cp target/release/live-transcribe package/root/usr/local/bin/
-chmod +x package/root/usr/local/bin/live-transcribe
+# Copy .app bundle to Applications
+cp -R "$BUNDLE_DIR" package/root/Applications/
+
+# Create symlink for CLI access
+ln -sf "/Applications/$APP_NAME.app/Contents/MacOS/$APP_NAME" package/root/usr/local/bin/live-transcribe
 
 # Create LaunchAgent template
 mkdir -p package/root/Library/LaunchAgents
@@ -36,7 +101,7 @@ cat > package/root/Library/LaunchAgents/com.johansglock.live-transcribe.plist <<
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/live-transcribe</string>
+        <string>/Applications/LiveTranscribe.app/Contents/MacOS/LiveTranscribe</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -98,6 +163,8 @@ su - "$CURRENT_USER" -c "launchctl load \"$USER_HOME/Library/LaunchAgents/com.jo
 echo
 echo "✅ Live Transcribe has been installed and started!"
 echo
+echo "App location: /Applications/LiveTranscribe.app"
+echo "CLI command: live-transcribe"
 echo "Configuration directory: $USER_HOME/.live-transcribe"
 echo "Logs: $USER_HOME/.live-transcribe/logs"
 echo
@@ -105,7 +172,7 @@ echo "Next steps:"
 echo "1. Download a model: live-transcribe download-model"
 echo "2. Grant Accessibility permissions:"
 echo "   System Settings > Privacy & Security > Accessibility"
-echo "   (Add and enable 'live-transcribe')"
+echo "   (Add and enable 'LiveTranscribe')"
 echo
 echo "Default hotkeys:"
 echo "  Cmd+Shift+T - Start transcription"
@@ -208,7 +275,8 @@ cat > readme.html << 'EOF'
 <html>
 <body>
 <h1>Installation</h1>
-<p>Live Transcribe will be installed to <code>/usr/local/bin/live-transcribe</code></p>
+<p>Live Transcribe will be installed to <code>/Applications/LiveTranscribe.app</code></p>
+<p>A command-line symlink will be created at <code>/usr/local/bin/live-transcribe</code></p>
 
 <h2>First Run</h2>
 <ol>
@@ -295,5 +363,6 @@ echo
 echo "To uninstall after testing:"
 echo "  launchctl unload ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
 echo "  rm ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
+echo "  rm -rf /Applications/LiveTranscribe.app"
 echo "  sudo rm /usr/local/bin/live-transcribe"
 echo

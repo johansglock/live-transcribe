@@ -17,6 +17,10 @@ path = "src/lib.rs"
 name = "live-transcribe"
 path = "src/main.rs"
 
+[[bin]]
+name = "generate-icon"
+path = "src/generate_icon.rs"
+
 [dependencies]
 # System tray
 tray-icon = "0.14"
