@@ -77,11 +77,12 @@ The binary will be at `target/release/live-transcribe`.
 Use the built-in download command (easiest):
 
 ```bash
-# Download the recommended base.en model (default)
+# Download the default medium.en model
 cargo run -- download-model
 
 # Or download a specific model
 cargo run -- download-model tiny.en     # Fastest
+cargo run -- download-model base.en     # Faster, good quality
 cargo run -- download-model small.en    # Better quality
 cargo run -- download-model base        # Multilingual
 ```
@@ -93,9 +94,9 @@ The download command automatically:
 
 **Available models**:
 - `tiny.en` - Fastest, good quality (~75MB)
-- `base.en` - **Recommended** - best balance (~142MB) [default]
+- `base.en` - Fast, good quality (~142MB)
 - `small.en` - Better quality, slower (~466MB)
-- `medium.en` - Highest quality, slowest (~1.5GB)
+- `medium.en` - **Default** - best balance of quality and speed (~1.5GB)
 - `tiny`, `base`, `small`, `medium` - Multilingual versions (slower, but support 99+ languages)
 
 ## Usage
@@ -178,9 +179,10 @@ hotkeys:
   stop_transcription: "Cmd+Shift+S"
 
 transcription:
-  model: "base.en"  # Use .en suffix for English-only CoreML models
+  model: "medium.en"  # Use .en suffix for English-only CoreML models (default)
   language: "en"
-  use_gpu: true      # Enables CoreML Neural Engine on M4
+  use_gpu: true        # Enables CoreML Neural Engine acceleration
+  silence_threshold: 0.003  # Lower = more sensitive to quiet speech
 ```
 
 ### Hotkey Format
@@ -213,10 +215,10 @@ Or use `"auto"` for automatic detection.
 ## Technical Details
 
 - **Audio capture**: 16kHz mono via cpal
-- **Transcription**: whisper.cpp with CoreML Neural Engine acceleration on M4
+- **Transcription**: whisper.cpp with CoreML Neural Engine acceleration
 - **Global hotkeys**: global-hotkey crate
 - **System tray**: tray-icon crate
-- **Performance**: On M4, expect ~10-20x realtime with base.en model (e.g., 10 seconds of audio transcribes in <1 second)
+- **Performance**: On Apple Silicon (M1/M2/M3/M4), expect ~5-10x realtime with medium.en model (e.g., 10 seconds of audio transcribes in 1-2 seconds)
 
 ## Troubleshooting
 
