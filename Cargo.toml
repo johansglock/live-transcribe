@@ -2,24 +2,38 @@
 name = "live-transcribe"
 version = "0.1.0"
 edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "Live audio transcription system tray app with Whisper AI - 100% offline with GPU acceleration"
+license = "MIT"
+repository = "https://github.com/yourusername/live-transcribe"
+keywords = ["whisper", "transcription", "speech-to-text", "macos", "tray"]
+categories = ["multimedia::audio", "command-line-utilities"]
+
+[lib]
+name = "live_transcribe"
+path = "src/lib.rs"
+
+[[bin]]
+name = "live-transcribe"
+path = "src/main.rs"
 
 [dependencies]
 # System tray
-tray-item = "0.9"
+tray-icon = "0.14"
+image = "0.25"
 
 # YAML configuration
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 
-# Global hotkeys for macOS
-global-hotkey = "0.5"
+# Global hotkeys
+global-hotkey = "0.6"
 
 # Audio capture
 cpal = "0.15"
 
-# Whisper integration (we'll use whisper.cpp bindings)
-# For now, we'll add this placeholder - we may need to use FFI or a wrapper
-# whisper-rs = "0.10"
+# Whisper integration
+whisper-rs = { version = "0.12", features = ["coreml"] }
 
 # Cross-platform paths
 dirs = "5.0"
@@ -28,8 +42,13 @@ dirs = "5.0"
 anyhow = "1.0"
 
 # Event loop
-winit = "0.29"
+tao = "0.28"
+
+# CLI argument parsing
+clap = { version = "4.5", features = ["derive"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.25"
 objc = "0.2"
+core-foundation = "0.9"
+core-graphics = "0.23"
