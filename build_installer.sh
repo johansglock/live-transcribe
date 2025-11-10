@@ -484,8 +484,7 @@ h1 {
     <li><strong>small.en</strong> - Balanced (default) (~466MB)</li>
     <li><strong>medium.en</strong> - Best accuracy, slower (~1.5GB)</li>
 </ul>
-<p>Download via Terminal: <code>live-transcribe download-model &lt;model-name&gt;</code></p>
-<p>Then update the model in <code>~/.live-transcribe/settings.yaml</code></p>
+<p>To change models, update the model in <code>~/.live-transcribe/settings.yaml</code> and run the app's "Download Model" menu option.</p>
 </div>
 
 <p><strong>Need help?</strong> Configuration file: <code>~/.live-transcribe/settings.yaml</code></p>
@@ -508,23 +507,10 @@ rm -rf package                       # Package staging directory
 rm -f distribution.html welcome.html readme.html license.html conclusion.html  # Temporary installer resources
 
 echo
-echo "==> Creating ZIP of binary..."
-cd target/release
-zip ../../live-transcribe-$VERSION-macos.zip live-transcribe
-cd ../..
-
-echo
-echo "==> Generating checksums..."
-shasum -a 256 LiveTranscribe-$VERSION-installer.pkg > checksums.txt
-shasum -a 256 live-transcribe-$VERSION-macos.zip >> checksums.txt
-
-echo
 echo "✅ Build complete!"
 echo
 echo "Files created:"
 echo "  - LiveTranscribe-$VERSION-installer.pkg (macOS installer)"
-echo "  - live-transcribe-$VERSION-macos.zip (binary only)"
-echo "  - checksums.txt (SHA256 checksums)"
 echo
 echo "To test the installer:"
 echo "  open LiveTranscribe-$VERSION-installer.pkg"

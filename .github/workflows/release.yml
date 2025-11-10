@@ -58,39 +58,37 @@ jobs:
       with:
         files: |
           LiveTranscribe-${{ steps.get_version.outputs.VERSION }}-installer.pkg
-          live-transcribe-${{ steps.get_version.outputs.VERSION }}-macos.zip
-          checksums.txt
         body: |
           ## Live Transcribe ${{ steps.get_version.outputs.VERSION }}
 
-          ### Installation Options
+          Real-time speech-to-text transcription for macOS using Whisper.
 
-          #### Option 1: macOS Installer (Recommended)
-          Download `LiveTranscribe-${{ steps.get_version.outputs.VERSION }}-installer.pkg` and double-click to install.
+          ### Installation
 
-          This will:
-          - Install the binary to `/usr/local/bin/live-transcribe`
-          - Set up automatic startup via LaunchAgent
-          - Create configuration directory at `~/.live-transcribe`
+          1. Download `LiveTranscribe-${{ steps.get_version.outputs.VERSION }}-installer.pkg`
+          2. Double-click to install
+          3. Grant permissions when prompted:
+             - **Microphone** - for audio transcription
+             - **Accessibility** - for typing transcribed text
+          4. The app will appear in your menu bar
 
-          After installation:
-          1. Download a model: `live-transcribe download-model`
-          2. Grant Accessibility permissions in System Settings
-          3. The app will run automatically in the background
+          The installer automatically downloads the Whisper model and starts the app.
 
-          #### Option 2: Manual Installation
-          Download `live-transcribe-${{ steps.get_version.outputs.VERSION }}-macos.zip`, extract, and run manually.
+          ### Usage
 
-          ### Configuration
-          Edit `~/.live-transcribe/settings.yaml` to customize hotkeys and transcription settings.
-
-          ### Default Hotkeys
+          **Default Hotkeys:**
           - **Cmd+Shift+T** - Start transcription
           - **Cmd+Shift+S** - Stop transcription
 
-          ### Logs
-          - `~/.live-transcribe/logs/stdout.log`
-          - `~/.live-transcribe/logs/stderr.log`
+          **Configuration:**
+          Customize settings in `~/.live-transcribe/settings.yaml`
+
+          **Troubleshooting:**
+          View logs at `~/.live-transcribe/logs/`
+
+          ### Requirements
+          - macOS 10.15 or later
+          - Apple Silicon or Intel processor
         draft: false
         prerelease: false
       env:
