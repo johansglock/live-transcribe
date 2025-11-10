@@ -57,6 +57,7 @@ pub mod macos {
 
         // Check accessibility permissions before attempting keyboard injection
         if !check_accessibility_permissions() {
+            eprintln!("⚠️  Skipping text append - no accessibility permissions");
             return;
         }
 
@@ -70,10 +71,14 @@ pub mod macos {
             }
         };
 
+        println!("⌨️  Typing {} chars: {:?}", text.len(), text);
         let utf16: Vec<u16> = text.encode_utf16().collect();
         if let Ok(event) = CGEvent::new_keyboard_event(source, 0, true) {
             event.set_string_from_utf16_unchecked(&utf16);
             event.post(CGEventTapLocation::HID);
+            println!("✅ Keyboard event posted successfully");
+        } else {
+            eprintln!("❌ Failed to create keyboard event");
         }
     }
 
@@ -85,6 +90,7 @@ pub mod macos {
 
         // Check accessibility permissions before attempting keyboard injection
         if !check_accessibility_permissions() {
+            eprintln!("⚠️  Skipping text replacement - no accessibility permissions");
             return;
         }
 
@@ -97,6 +103,8 @@ pub mod macos {
                 return;
             }
         };
+
+        println!("⌨️  Replacing text: deleting {} chars, typing {} chars: {:?}", delete_count, new_text.len(), new_text);
 
         // Post delete events for the old text
         for _ in 0..delete_count {
@@ -120,6 +128,9 @@ pub mod macos {
             if let Ok(event) = CGEvent::new_keyboard_event(source, 0, true) {
                 event.set_string_from_utf16_unchecked(&utf16);
                 event.post(CGEventTapLocation::HID);
+                println!("✅ Keyboard event posted successfully");
+            } else {
+                eprintln!("❌ Failed to create keyboard event");
             }
         }
     }

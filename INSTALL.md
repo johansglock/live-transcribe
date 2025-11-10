@@ -4,15 +4,15 @@
 
 1. Download the latest `LiveTranscribe-*-installer.pkg` from [Releases](https://github.com/johansglock/live-transcribe/releases)
 2. Double-click the .pkg file and follow the installer
-3. Download a model:
-   ```bash
-   live-transcribe download-model
-   ```
-4. Grant Accessibility permissions:
+3. The installer will automatically:
+   - Download the Whisper model (small.en)
+   - Start the application
+   - Set up auto-start on login
+4. Grant Accessibility permissions when prompted:
    - Open System Settings > Privacy & Security > Accessibility
-   - Add `live-transcribe` and enable it
+   - Add `LiveTranscribe` and enable it
 
-The app will start automatically and run in the background!
+The app will be running in your menu bar!
 
 ## Option 2: Manual Installation
 
@@ -43,10 +43,10 @@ live-transcribe
 
 ```bash
 # Copy LaunchAgent plist (update paths if needed)
-cp com.johansglock.live-transcribe.plist ~/Library/LaunchAgents/
+cp nl.300.live-transcribe.plist ~/Library/LaunchAgents/
 
 # Load the service
-launchctl load ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist
+launchctl load ~/Library/LaunchAgents/nl.300.live-transcribe.plist
 ```
 
 ## Configuration
@@ -59,7 +59,7 @@ hotkeys:
   stop_transcription: "Cmd+Shift+S"
 
 transcription:
-  model: "medium.en"
+  model: "small.en"
   language: "en"
   use_gpu: true
   streaming: true
@@ -70,15 +70,16 @@ transcription:
 ## Available Models
 
 - `tiny.en` - Fastest, less accurate (~75MB)
-- `base.en` - Fast, good accuracy (~145MB)
-- `small.en` - Balanced (~485MB)
-- `medium.en` - High accuracy, recommended (~1.5GB)
-- `large-v2` - Best accuracy, slowest (~3GB)
+- `base.en` - Fast, good accuracy (~142MB)
+- `small.en` - Balanced, recommended (~466MB) - **Default**
+- `medium.en` - High accuracy (~1.5GB)
 
-Download a model:
+The installer automatically downloads `small.en`. To use a different model:
 ```bash
 live-transcribe download-model <model-name>
 ```
+
+Then update `~/.live-transcribe/settings.yaml` to use the new model.
 
 ## Usage
 
@@ -105,20 +106,20 @@ tail -f ~/.live-transcribe/logs/stderr.log
 ### Stop/start service
 ```bash
 # Stop
-launchctl unload ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist
+launchctl unload ~/Library/LaunchAgents/nl.300.live-transcribe.plist
 
 # Start
-launchctl load ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist
+launchctl load ~/Library/LaunchAgents/nl.300.live-transcribe.plist
 ```
 
 ### Uninstall
 
 ```bash
 # Stop service
-launchctl unload ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist
+launchctl unload ~/Library/LaunchAgents/nl.300.live-transcribe.plist
 
 # Remove files
-rm ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist
+rm ~/Library/LaunchAgents/nl.300.live-transcribe.plist
 sudo rm /usr/local/bin/live-transcribe
 rm -rf ~/.live-transcribe
 ```

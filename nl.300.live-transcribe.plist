@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.johansglock.live-transcribe</string>
+    <string>nl.300.live-transcribe</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/live-transcribe</string>
+        <string>/Applications/LiveTranscribe.app/Contents/MacOS/LiveTranscribe</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -15,12 +15,6 @@
 
     <key>KeepAlive</key>
     <true/>
-
-    <key>StandardOutPath</key>
-    <string>/Users/johans/.live-transcribe/logs/stdout.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>/Users/johans/.live-transcribe/logs/stderr.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>

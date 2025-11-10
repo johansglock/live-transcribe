@@ -23,7 +23,7 @@ echo
 # Create .app bundle
 echo "==> Creating .app bundle..."
 APP_NAME="LiveTranscribe"
-BUNDLE_ID="com.johansglock.live-transcribe"
+BUNDLE_ID="nl.300.live-transcribe"
 BUNDLE_DIR="$APP_NAME.app"
 
 rm -rf "$BUNDLE_DIR"
@@ -64,11 +64,15 @@ cat > "$BUNDLE_DIR/Contents/Info.plist" << EOF
     <key>LSMinimumSystemVersion</key>
     <string>10.15</string>
     <key>LSUIElement</key>
-    <true/>
+    <string>1</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Live Transcribe needs microphone access to transcribe your speech in real-time.</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
 </dict>
 </plist>
 EOF
@@ -76,28 +80,39 @@ EOF
 echo "✅ App bundle created: $BUNDLE_DIR"
 echo
 
+# Sign the app bundle with ad-hoc signature
+# This ensures consistent identifier across updates for permissions
+echo "==> Signing app bundle..."
+codesign --force --deep --sign - \
+         --identifier "$BUNDLE_ID" \
+         "$BUNDLE_DIR"
+
+if [ $? -eq 0 ]; then
+    echo "✅ App bundle signed successfully"
+    codesign -dv "$BUNDLE_DIR" 2>&1 | grep "Identifier\|Signature"
+else
+    echo "⚠️  Warning: Code signing failed, but continuing..."
+fi
+echo
+
 # Create package structure
 echo "==> Creating package structure..."
 rm -rf package
 mkdir -p package/root/Applications
-mkdir -p package/root/usr/local/bin
 mkdir -p package/scripts
 
-# Copy .app bundle to Applications
+# Copy .app bundle to a temporary location with the full path
 cp -R "$BUNDLE_DIR" package/root/Applications/
-
-# Create symlink for CLI access
-ln -sf "/Applications/$APP_NAME.app/Contents/MacOS/$APP_NAME" package/root/usr/local/bin/live-transcribe
 
 # Create LaunchAgent template
 mkdir -p package/root/Library/LaunchAgents
-cat > package/root/Library/LaunchAgents/com.johansglock.live-transcribe.plist << 'EOF'
+cat > package/root/Library/LaunchAgents/nl.300.live-transcribe.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.johansglock.live-transcribe</string>
+    <string>nl.300.live-transcribe</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -110,17 +125,17 @@ cat > package/root/Library/LaunchAgents/com.johansglock.live-transcribe.plist <<
     <key>KeepAlive</key>
     <true/>
 
-    <key>StandardOutPath</key>
-    <string>/tmp/live-transcribe-stdout.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>/tmp/live-transcribe-stderr.log</string>
-
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
+
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/.live-transcribe/logs/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/.live-transcribe/logs/stderr.log</string>
 
     <key>ProcessType</key>
     <string>Interactive</string>
@@ -142,42 +157,84 @@ USER_HOME=$(eval echo ~$CURRENT_USER)
 echo "Installing for user: $CURRENT_USER"
 echo "Home directory: $USER_HOME"
 
-# Create config directory
+# Create logs directory
 mkdir -p "$USER_HOME/.live-transcribe/logs"
 chown -R "$CURRENT_USER" "$USER_HOME/.live-transcribe"
 
-# Copy LaunchAgent to user's LaunchAgents directory
+# Copy LaunchAgent to user's LaunchAgents directory and substitute HOME path
 mkdir -p "$USER_HOME/Library/LaunchAgents"
-cp /Library/LaunchAgents/com.johansglock.live-transcribe.plist "$USER_HOME/Library/LaunchAgents/"
-chown "$CURRENT_USER" "$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
+sed "s|{{HOME}}|$USER_HOME|g" /Library/LaunchAgents/nl.300.live-transcribe.plist > "$USER_HOME/Library/LaunchAgents/nl.300.live-transcribe.plist"
+chown "$CURRENT_USER" "$USER_HOME/Library/LaunchAgents/nl.300.live-transcribe.plist"
 
-# Update the log paths to use the user's home directory
-sed -i '' "s|/tmp/live-transcribe-stdout.log|$USER_HOME/.live-transcribe/logs/stdout.log|g" \
-    "$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
-sed -i '' "s|/tmp/live-transcribe-stderr.log|$USER_HOME/.live-transcribe/logs/stderr.log|g" \
-    "$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
+# Wait for the app to be installed before proceeding
+echo "Waiting for app installation to complete..."
+APP_PATH="/Applications/LiveTranscribe.app/Contents/MacOS/LiveTranscribe"
+for i in {1..30}; do
+    if [ -f "$APP_PATH" ]; then
+        echo "App found!"
+        break
+    fi
+    sleep 1
+done
 
-# Load the LaunchAgent as the user
-su - "$CURRENT_USER" -c "launchctl load \"$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist\""
+# Create a setup script that will download the model and start the app
+cat > /tmp/livetranscribe-setup.sh << SETUP_EOF
+#!/bin/bash
+echo "=========================================="
+echo "Live Transcribe - First Time Setup"
+echo "=========================================="
+echo ""
 
-echo
-echo "✅ Live Transcribe has been installed and started!"
-echo
-echo "App location: /Applications/LiveTranscribe.app"
-echo "CLI command: live-transcribe"
-echo "Configuration directory: $USER_HOME/.live-transcribe"
-echo "Logs: $USER_HOME/.live-transcribe/logs"
-echo
-echo "Next steps:"
-echo "1. Download a model: live-transcribe download-model"
-echo "2. Grant Accessibility permissions:"
-echo "   System Settings > Privacy & Security > Accessibility"
-echo "   (Add and enable 'LiveTranscribe')"
-echo
-echo "Default hotkeys:"
-echo "  Cmd+Shift+T - Start transcription"
-echo "  Cmd+Shift+S - Stop transcription"
-echo
+# Use the app path detected during postinstall
+APP_PATH="$APP_PATH"
+
+if [ -z "\$APP_PATH" ] || [ ! -f "\$APP_PATH" ]; then
+    echo "❌ Installation failed. App not found."
+    echo ""
+    echo "Press any key to close this window..."
+    read -n 1
+    exit 1
+fi
+
+echo "Downloading Whisper model..."
+echo "This will take a few minutes..."
+echo ""
+
+# Download the model
+"\$APP_PATH" download-model
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "✅ Model downloaded successfully!"
+    echo ""
+    echo "Starting Live Transcribe..."
+    sleep 2
+
+    # Start the app via LaunchAgent
+    launchctl load "$HOME/Library/LaunchAgents/nl.300.live-transcribe.plist"
+
+    echo ""
+    echo "✅ Live Transcribe is now running in your menu bar!"
+    echo ""
+    echo "Press any key to close this window..."
+    read -n 1
+else
+    echo ""
+    echo "❌ Model download failed. Please try again later."
+    echo ""
+    echo "You can manually download the model by running:"
+    echo "  /Applications/LiveTranscribe.app/Contents/MacOS/LiveTranscribe download-model"
+    echo ""
+    echo "Press any key to close this window..."
+    read -n 1
+fi
+SETUP_EOF
+
+chmod +x /tmp/livetranscribe-setup.sh
+chown "$CURRENT_USER" /tmp/livetranscribe-setup.sh
+
+# Open Terminal to run the setup script as the user
+su - "$CURRENT_USER" -c "open -a Terminal /tmp/livetranscribe-setup.sh"
 
 exit 0
 EOF
@@ -198,9 +255,27 @@ USER_HOME=$(eval echo ~$CURRENT_USER)
 echo "Checking for existing installation..."
 
 # Unload existing LaunchAgent if it exists
-if [ -f "$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist" ]; then
+if [ -f "$USER_HOME/Library/LaunchAgents/nl.300.live-transcribe.plist" ]; then
     echo "Stopping existing service..."
-    su - "$CURRENT_USER" -c "launchctl unload \"$USER_HOME/Library/LaunchAgents/com.johansglock.live-transcribe.plist\"" 2>/dev/null || true
+    su - "$CURRENT_USER" -c "launchctl unload \"$USER_HOME/Library/LaunchAgents/nl.300.live-transcribe.plist\"" 2>/dev/null || true
+    # Give the app time to shut down gracefully
+    sleep 1
+fi
+
+# Kill any remaining LiveTranscribe processes to ensure clean state
+echo "Ensuring all LiveTranscribe processes are stopped..."
+pkill -f "LiveTranscribe" 2>/dev/null || true
+pkill -f "live-transcribe" 2>/dev/null || true
+sleep 1
+
+# Force remove existing app to ensure clean install (check both possible locations)
+if [ -d "/Applications/LiveTranscribe.app" ]; then
+    echo "Removing existing app at /Applications/LiveTranscribe.app..."
+    rm -rf "/Applications/LiveTranscribe.app" 2>/dev/null || true
+fi
+if [ -d "/Applications/LiveTranscribe.localized" ]; then
+    echo "Removing existing app at /Applications/LiveTranscribe.localized..."
+    rm -rf "/Applications/LiveTranscribe.localized" 2>/dev/null || true
 fi
 
 exit 0
@@ -211,9 +286,10 @@ chmod +x package/scripts/preinstall
 echo "==> Building component package..."
 pkgbuild --root package/root \
          --scripts package/scripts \
-         --identifier com.johansglock.live-transcribe \
+         --identifier nl.300.live-transcribe \
          --version "$VERSION" \
          --install-location / \
+         --filter .DS_Store \
          live-transcribe-$VERSION.pkg
 
 echo
@@ -222,31 +298,31 @@ cat > distribution.xml << EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
     <title>Live Transcribe</title>
-    <organization>com.johansglock</organization>
-    <domains enable_localSystem="true"/>
-    <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <organization>nl.300</organization>
+    <domains enable_localSystem="false" enable_currentUserHome="false" enable_anywhere="false"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64" rootVolumeOnly="true"/>
 
     <welcome file="welcome.html"/>
-    <readme file="readme.html"/>
     <license file="license.html"/>
+    <conclusion file="conclusion.html"/>
 
-    <pkg-ref id="com.johansglock.live-transcribe"/>
+    <pkg-ref id="nl.300.live-transcribe"/>
 
     <options customize="never" require-scripts="true"/>
 
     <choices-outline>
         <line choice="default">
-            <line choice="com.johansglock.live-transcribe"/>
+            <line choice="nl.300.live-transcribe"/>
         </line>
     </choices-outline>
 
     <choice id="default"/>
 
-    <choice id="com.johansglock.live-transcribe" visible="false">
-        <pkg-ref id="com.johansglock.live-transcribe"/>
+    <choice id="nl.300.live-transcribe" visible="false">
+        <pkg-ref id="nl.300.live-transcribe"/>
     </choice>
 
-    <pkg-ref id="com.johansglock.live-transcribe" version="$VERSION">live-transcribe-$VERSION.pkg</pkg-ref>
+    <pkg-ref id="nl.300.live-transcribe" version="$VERSION">live-transcribe-$VERSION.pkg</pkg-ref>
 </installer-gui-script>
 EOF
 
@@ -276,14 +352,16 @@ cat > readme.html << 'EOF'
 <body>
 <h1>Installation</h1>
 <p>Live Transcribe will be installed to <code>/Applications/LiveTranscribe.app</code></p>
-<p>A command-line symlink will be created at <code>/usr/local/bin/live-transcribe</code></p>
 
 <h2>First Run</h2>
 <ol>
-    <li>After installation, the app will start automatically</li>
-    <li>Download a model: Open Terminal and run <code>live-transcribe download-model</code></li>
-    <li>Grant Accessibility permissions in System Settings > Privacy & Security > Accessibility</li>
-    <li>Use the hotkeys:
+    <li>After installation, the app will start automatically in the menu bar</li>
+    <li>Click the menu bar icon to download a Whisper model</li>
+    <li>Grant Accessibility permissions:
+        <br><em>System Settings > Privacy & Security > Accessibility</em>
+        <br>(Add and enable 'LiveTranscribe')
+    </li>
+    <li>Use the hotkeys to transcribe:
         <ul>
             <li><strong>Cmd+Shift+T</strong> - Start transcription</li>
             <li><strong>Cmd+Shift+S</strong> - Stop transcription</li>
@@ -295,7 +373,9 @@ cat > readme.html << 'EOF'
 <p>Edit <code>~/.live-transcribe/settings.yaml</code> to customize hotkeys and transcription settings.</p>
 
 <h2>Logs</h2>
-<p>View logs at <code>~/.live-transcribe/logs/</code></p>
+<p>View logs using macOS Console or Terminal:</p>
+<pre>log show --predicate 'process == "LiveTranscribe"' --last 1h</pre>
+<pre>log stream --predicate 'process == "LiveTranscribe"'</pre>
 </body>
 </html>
 EOF
@@ -329,14 +409,103 @@ SOFTWARE.</p>
 </html>
 EOF
 
+# Create conclusion screen (shown AFTER installation completes)
+cat > conclusion.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 20px;
+}
+h1 {
+    color: #1d4ed8;
+}
+.important {
+    background-color: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 15px;
+    margin: 20px 0;
+}
+.step {
+    background-color: #f0f9ff;
+    border-left: 4px solid #3b82f6;
+    padding: 12px;
+    margin: 15px 0;
+}
+.step h3 {
+    margin-top: 0;
+    color: #1e40af;
+}
+.hotkey {
+    font-family: monospace;
+    background-color: #e5e7eb;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+</style>
+</head>
+<body>
+<h1>Installation Complete!</h1>
+<p>Live Transcribe is now running in your menu bar. Look for the icon at the top-right of your screen.</p>
+
+<div class="important">
+<strong>⚠️ IMPORTANT: Complete these steps to use the app</strong>
+</div>
+
+<div class="step">
+<h3>Step 1: Grant Permissions (Required)</h3>
+<p>Go to <strong>System Settings > Privacy & Security</strong> and grant these permissions:</p>
+<ul>
+    <li><strong>Microphone</strong> - Enable for "LiveTranscribe" to record audio</li>
+    <li><strong>Accessibility</strong> - Enable for "LiveTranscribe" to type transcribed text</li>
+</ul>
+<p><em>Without these permissions, the app cannot function.</em></p>
+</div>
+
+<div class="step">
+<h3>Step 2: Start Transcribing!</h3>
+<p>The <strong>small.en</strong> model has been automatically downloaded and configured.</p>
+<p>Use these keyboard shortcuts:</p>
+<ul>
+    <li><span class="hotkey">Cmd+Shift+T</span> - Start transcription</li>
+    <li><span class="hotkey">Cmd+Shift+S</span> - Stop transcription</li>
+</ul>
+<p>You can customize these shortcuts in <code>~/.live-transcribe/settings.yaml</code></p>
+</div>
+
+<div class="step">
+<h3>Optional: Try Different Models</h3>
+<p>Want to try a different model? Available options:</p>
+<ul>
+    <li><strong>tiny.en</strong> - Fastest, lower accuracy (~75MB)</li>
+    <li><strong>base.en</strong> - Fast, good accuracy (~142MB)</li>
+    <li><strong>small.en</strong> - Balanced (default) (~466MB)</li>
+    <li><strong>medium.en</strong> - Best accuracy, slower (~1.5GB)</li>
+</ul>
+<p>Download via Terminal: <code>live-transcribe download-model &lt;model-name&gt;</code></p>
+<p>Then update the model in <code>~/.live-transcribe/settings.yaml</code></p>
+</div>
+
+<p><strong>Need help?</strong> Configuration file: <code>~/.live-transcribe/settings.yaml</code></p>
+</body>
+</html>
+EOF
+
 echo "==> Building product package..."
 productbuild --distribution distribution.xml \
              --resources . \
              --package-path . \
              LiveTranscribe-$VERSION-installer.pkg
 
-# Remove intermediate component package (not needed by users)
-rm -f live-transcribe-$VERSION.pkg
+echo
+echo "==> Cleaning up intermediate files..."
+# Remove intermediate files created during build
+rm -f live-transcribe-$VERSION.pkg  # Component package
+rm -rf "$BUNDLE_DIR"                 # .app bundle (already packaged)
+rm -rf package                       # Package staging directory
+rm -f distribution.html welcome.html readme.html license.html conclusion.html  # Temporary installer resources
 
 echo
 echo "==> Creating ZIP of binary..."
@@ -361,8 +530,7 @@ echo "To test the installer:"
 echo "  open LiveTranscribe-$VERSION-installer.pkg"
 echo
 echo "To uninstall after testing:"
-echo "  launchctl unload ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
-echo "  rm ~/Library/LaunchAgents/com.johansglock.live-transcribe.plist"
+echo "  launchctl unload ~/Library/LaunchAgents/nl.300.live-transcribe.plist"
+echo "  rm ~/Library/LaunchAgents/nl.300.live-transcribe.plist"
 echo "  rm -rf /Applications/LiveTranscribe.app"
-echo "  sudo rm /usr/local/bin/live-transcribe"
 echo

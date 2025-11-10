@@ -53,7 +53,7 @@ pub struct TranscriptionConfig {
 }
 
 fn default_model() -> String {
-    "medium.en".to_string()
+    "small.en".to_string()
 }
 
 fn default_language() -> String {

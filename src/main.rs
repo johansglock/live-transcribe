@@ -23,6 +23,8 @@ use transcription_state::{Action, TranscriptionState};
 use transcription_worker::TranscriptionWorker;
 use tray::{TrayApp, TrayMenuEvent};
 use tao::event_loop::{EventLoop, ControlFlow};
+#[cfg(target_os = "macos")]
+use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
 use std::sync::{Arc, Mutex};
 
 #[derive(Parser)]
@@ -573,7 +575,11 @@ fn run_app() -> Result<()> {
     let audio_capture = Arc::new(Mutex::new(AudioCapture::new()?));
 
     // Create event loop
-    let event_loop = EventLoop::new();
+    let mut event_loop = EventLoop::new();
+
+    // Set app to be menu-bar only (no Dock icon) - MUST be before run()
+    #[cfg(target_os = "macos")]
+    event_loop.set_activation_policy(ActivationPolicy::Accessory);
 
     // Create tray app
     let mut tray_app = TrayApp::new()?;

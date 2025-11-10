@@ -11,7 +11,7 @@ fi
 
 VERSION="$1"
 APP_NAME="LiveTranscribe"
-BUNDLE_ID="com.johansglock.live-transcribe"
+BUNDLE_ID="nl.300.live-transcribe"
 BINARY_PATH="target/release/live-transcribe"
 
 echo "Creating $APP_NAME.app bundle..."
